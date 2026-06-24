@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeSlice by @Darfdits (High Power)</title>
+    <title>TimeSlice by @Darfdits (RAW POWER)</title>
     
-    <!-- GATILHO DE MULTI-THREAD -->
+    <!-- Script para ativar Multi-thread no GitHub Pages -->
     <script src="coi-serviceworker.js"></script>
     
     <style>
@@ -22,24 +22,34 @@
         .card {
             background: var(--card); padding: 25px; border-radius: 20px;
             width: 100%; max-width: 420px; border: 1px solid var(--danger);
+            box-shadow: 0 0 30px rgba(255, 59, 48, 0.15);
         }
-        h1 { font-size: 1.4rem; text-align: center; color: var(--primary); margin: 0; }
-        .mode-tag { font-size: 0.6rem; background: var(--danger); color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: bold; margin-bottom: 20px; display: inline-block; }
+        h1 { font-size: 1.4rem; text-align: center; color: var(--primary); margin: 0 0 5px 0; font-weight: 900; }
+        .badge { font-size: 0.6rem; background: var(--danger); color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: bold; margin-bottom: 20px; display: inline-block; }
         
         .control-group { margin-bottom: 20px; }
         label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #8e8e93; margin-bottom: 8px; }
-        
+        label span { color: var(--primary); }
+
         input[type="file"], select, input[type="number"] {
-            width: 100%; padding: 12px; background: #2c2c2e; border: 1px solid var(--border); border-radius: 12px; color: white;
+            width: 100%; padding: 12px; background: #2c2c2e; border: 1px solid var(--border); border-radius: 12px; color: white; outline: none;
         }
-        input[type="range"] { width: 100%; accent-color: var(--primary); }
+        input[type="range"] { width: 100%; accent-color: var(--primary); margin: 10px 0; }
 
         button {
-            width: 100%; padding: 18px; background: var(--primary); border: none; border-radius: 12px; color: white; font-weight: bold; cursor: pointer;
+            width: 100%; padding: 18px; background: var(--primary); border: none; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; font-size: 1.1rem;
         }
-        #status { text-align: center; margin-top: 15px; font-size: 0.9rem; color: var(--danger); font-weight: bold; }
+        button:active { transform: scale(0.98); }
+        button:disabled { background: #3a3a3c; color: #8e8e93; }
+
+        #status { text-align: center; margin-top: 15px; font-size: 0.9rem; color: var(--danger); font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
         progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--primary); display: none; }
         video { width: 100%; margin-top: 20px; border-radius: 15px; display: none; background: #000; }
+        
+        .info-box {
+            margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.05);
+            border-radius: 15px; font-size: 0.75rem; color: #8e8e93; width: 100%; max-width: 420px; box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
@@ -47,17 +57,17 @@
     <div class="card">
         <center>
             <h1>TimeSlice Pro</h1>
-            <div class="mode-tag">EXPERIMENTAL MULTI-THREAD</div>
+            <div class="badge">UNSTABLE FULL-RESOLUTION MODE</div>
         </center>
         
         <div class="control-group">
-            <label>Video Source</label>
+            <label>1. Source Video (Original Quality)</label>
             <input type="file" id="uploader" accept="video/*" />
         </div>
 
         <div class="control-group">
-            <label>Slices: <span id="val-slices">30</span></label>
-            <input type="range" id="slices" min="2" max="100" value="30">
+            <label>Slices (Up to 150): <span id="val-slices">30</span></label>
+            <input type="range" id="slices" min="2" max="150" value="30">
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:20px;">
@@ -66,7 +76,7 @@
                 <input type="number" id="delay" value="0.05" step="0.01">
             </div>
             <div class="control-group">
-                <label>Mode</label>
+                <label>Direction</label>
                 <select id="mode">
                     <option value="vertical">Vertical</option>
                     <option value="horizontal">Horizontal</option>
@@ -74,15 +84,20 @@
             </div>
         </div>
 
-        <button id="btn">FORCE MULTI-THREAD RENDER</button>
+        <button id="btn">FORCE FULL RENDER</button>
         
-        <div id="status">Engine Unlocked</div>
+        <div id="status">Ready</div>
         <progress id="progress" value="0" max="100"></progress>
         
         <video id="outputVideo" controls playsinline></video>
     </div>
 
-    <!-- Versão 0.11.6: Multi-thread habilitado -->
+    <div class="info-box">
+        <b>Warning:</b> This mode processes video at its <b>original resolution</b>. 
+        High-resolution videos with many slices may crash the mobile browser due to extreme RAM usage.
+    </div>
+
+    <!-- Usando FFmpeg 0.11.6 para Multi-thread -->
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
     
     <script>
@@ -108,24 +123,24 @@
                 video.style.display = "none";
                 
                 if (!ffmpeg.isLoaded()) {
-                    status.innerText = "Loading Multi-Thread Core...";
+                    status.innerText = "Igniting Multi-Core Engine...";
                     await ffmpeg.load();
                 }
 
-                status.innerText = "Uploading RAW data...";
+                status.innerText = "Loading Raw Bytes...";
                 ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
 
                 ffmpeg.setProgress(({ ratio }) => {
                     prog.style.display = 'block';
                     prog.value = ratio * 100;
-                    status.innerText = `Power Rendering: ${(ratio * 100).toFixed(0)}%`;
+                    status.innerText = `Rendering: ${(ratio * 100).toFixed(0)}%`;
                 });
 
                 const n = parseInt(document.getElementById('slices').value);
                 const d = parseFloat(document.getElementById('delay').value);
                 const isHoriz = document.getElementById('mode').value === 'horizontal';
 
-                // FILTRO RAW (SEM SCALE DE SEGURANÇA)
+                // FILTRO RAW: Apenas split e vstack. Sem escala, sem limites.
                 let filter = `split=${n}`;
                 let labels = ""; for(let i=0; i<n; i++) labels += `[v${i}]`;
                 filter += `${labels};`;
@@ -139,29 +154,27 @@
                 }
                 filter += `${stack}${isHoriz ? 'hstack' : 'vstack'}=inputs=${n}:shortest=1`;
 
-                // EXECUÇÃO SEM LIMITES
                 await ffmpeg.run(
                     '-i', 'input.mp4',
                     '-vf', filter,
                     '-c:v', 'libx264',
                     '-preset', 'ultrafast',
                     '-pix_fmt', 'yuv420p',
-                    // Detecta automaticamente o número de núcleos ou força o máximo
-                    '-threads', '0', 
+                    '-threads', '0', // Usa todos os núcleos
                     'output.mp4'
                 );
 
                 const data = ffmpeg.FS('readFile', 'output.mp4');
                 video.src = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
                 video.style.display = "block";
-                status.innerText = "Power Render Complete!";
+                status.innerText = "Done!";
 
                 ffmpeg.FS('unlink', 'input.mp4');
                 ffmpeg.FS('unlink', 'output.mp4');
 
             } catch (e) {
                 console.error(e);
-                status.innerText = "SYSTEM CRASH: Memory or Thread limit exceeded.";
+                status.innerText = "CRASH: Memory Overload";
             } finally {
                 btn.disabled = false;
             }
