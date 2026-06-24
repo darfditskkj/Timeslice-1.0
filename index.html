@@ -3,45 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeSlice Engine Pro</title>
+    <title>TimeSlice Engine Ultra</title>
     
     <style>
         body { 
             font-family: -apple-system, system-ui, sans-serif;
             background: #000; color: white; 
             display: flex; flex-direction: column; align-items: center; 
-            padding: 20px; margin: 0; min-height: 100vh;
+            padding: 15px; margin: 0; min-height: 100vh;
         }
         .card {
-            background: #1c1c1e; padding: 25px; border-radius: 20px;
+            background: #1c1c1e; padding: 20px; border-radius: 20px;
             width: 100%; max-width: 450px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-            text-align: center;
         }
-        h1 { font-size: 1.6rem; margin-top: 0; color: #0a84ff; margin-bottom: 20px; }
-        .input-group { margin-bottom: 15px; text-align: left; }
-        label { display: block; font-size: 0.85rem; color: #8e8e93; margin-bottom: 8px; }
+        h1 { font-size: 1.4rem; text-align: center; color: #0a84ff; margin: 0 0 20px 0; }
         
-        input[type="file"], input[type="number"], select {
+        .control-group { margin-bottom: 20px; }
+        label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #8e8e93; margin-bottom: 8px; }
+        label span { color: #0a84ff; font-weight: bold; }
+
+        .warning { 
+            color: #ff453a; font-size: 0.75rem; font-weight: bold; 
+            margin-bottom: 10px; display: none; text-align: center;
+            border: 1px solid #ff453a; padding: 8px; border-radius: 8px;
+        }
+
+        input[type="range"] {
+            width: 100%; height: 6px; background: #3a3a3c;
+            border-radius: 5px; appearance: none; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none; width: 22px; height: 22px; 
+            background: #fff; border-radius: 50%; cursor: pointer;
+        }
+
+        input[type="file"], select, input[type="number"] {
             width: 100%; padding: 12px; background: #2c2c2e;
             border: 1px solid #3a3a3c; border-radius: 12px; color: white;
             box-sizing: border-box; font-size: 1rem;
         }
 
-        .grid-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        /* Switch Toggle Styling */
+        .switch-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+        .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #3a3a3c; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #32d74b; }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 
         button {
             width: 100%; padding: 18px; background: #0a84ff;
             border: none; border-radius: 12px; color: white;
-            font-weight: 600; font-size: 1.1rem; cursor: pointer;
-            margin-top: 10px; transition: 0.2s;
+            font-weight: bold; font-size: 1.1rem; cursor: pointer;
+            margin-top: 10px;
         }
         button:disabled { background: #3a3a3c; color: #8e8e93; }
 
-        #status { margin-top: 15px; font-size: 0.9rem; color: #32d74b; min-height: 1.2em; }
-        progress { width: 100%; height: 10px; margin-top: 15px; accent-color: #0a84ff; }
-        video { width: 100%; margin-top: 20px; border-radius: 12px; display: none; background: #000; }
-        
-        .hint { font-size: 0.75rem; color: #636366; margin-top: 8px; }
+        #status { text-align: center; margin-top: 15px; font-size: 0.85rem; color: #32d74b; min-height: 1.2em; }
+        progress { width: 100%; height: 8px; margin-top: 10px; accent-color: #0a84ff; }
+        video { width: 100%; margin-top: 20px; border-radius: 12px; display: none; }
     </style>
 </head>
 <body>
@@ -49,49 +72,63 @@
     <div class="card">
         <h1>TimeSlice Engine</h1>
         
-        <div class="input-group">
-            <label>1. Selecione o Vídeo</label>
+        <div class="control-group">
+            <label>1. Arquivo de Vídeo</label>
             <input type="file" id="uploader" accept="video/*" />
         </div>
 
-        <div class="grid-inputs">
-            <div class="input-group">
-                <label>Ângulo/Direção</label>
+        <div class="control-group">
+            <label>Fatias (Slices): <span id="val-slices">12</span></label>
+            <input type="range" id="slices" min="2" max="30" value="12">
+        </div>
+
+        <div class="switch-container">
+            <span style="font-size: 0.85rem; color: #8e8e93;">Ativar Feather (Suavização)</span>
+            <label class="switch">
+                <input type="checkbox" id="feather-toggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div id="warning-msg" class="warning">
+            ⚠️ EXPERIMENTAL E LENTO<br>O processamento pode demorar minutos ou travar o navegador.
+        </div>
+
+        <div id="feather-control" class="control-group" style="display: none;">
+            <label>Intensidade do Feather: <span id="val-feather">20</span></label>
+            <input type="range" id="feather" min="1" max="150" value="20">
+        </div>
+
+        <div class="grid">
+            <div class="control-group">
+                <label>Atraso (seg)</label>
+                <input type="number" id="delay" value="0.10" step="0.05">
+            </div>
+            <div class="control-group">
+                <label>Direção</label>
                 <select id="mode">
-                    <option value="vertical">Cima para Baixo</option>
-                    <option value="horizontal">Esquerda para Direita</option>
-                </select>
-            </div>
-            <div class="input-group">
-                <label>Fatias (Slices)</label>
-                <input type="number" id="slices" value="12" min="2" max="30">
-            </div>
-        </div>
-
-        <div class="grid-inputs">
-            <div class="input-group">
-                <label>Atraso p/ fatia (s)</label>
-                <input type="number" id="delay" value="0.15" step="0.05">
-            </div>
-            <div class="input-group">
-                <label>Fluxo</label>
-                <select id="flow">
-                    <option value="normal">Normal</option>
-                    <option value="inverted">Invertido</option>
+                    <option value="vertical">Vertical</option>
+                    <option value="horizontal">Horizontal</option>
                 </select>
             </div>
         </div>
 
-        <button id="btn">GERAR EFEITO</button>
+        <div class="control-group">
+            <label>Fluxo do Tempo</label>
+            <select id="flow">
+                <option value="normal">Normal</option>
+                <option value="inverted">Invertido</option>
+            </select>
+        </div>
+
+        <button id="btn">GERAR RENDER</button>
         
-        <div id="status">Aguardando...</div>
+        <div id="status">Pronto</div>
         <progress id="progress" value="0" max="100" style="display:none;"></progress>
         
         <video id="outputVideo" controls playsinline></video>
-        <p id="saveHint" class="hint" style="display:none;">Toque e segure no vídeo para salvar nas fotos.</p>
     </div>
 
-    <!-- Versão estável Single Thread para iOS/GitHub -->
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js"></script>
     
     <script>
@@ -101,54 +138,90 @@
             corePath: 'https://unpkg.com/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js'
         });
 
+        // Controles de UI
+        const inputSlices = document.getElementById('slices');
+        const inputFeather = document.getElementById('feather');
+        const featherToggle = document.getElementById('feather-toggle');
+        const featherControl = document.getElementById('feather-control');
+        const warningMsg = document.getElementById('warning-msg');
+
+        inputSlices.oninput = () => document.getElementById('val-slices').innerText = inputSlices.value;
+        inputFeather.oninput = () => document.getElementById('val-feather').innerText = inputFeather.value;
+
+        featherToggle.onchange = () => {
+            const active = featherToggle.checked;
+            featherControl.style.display = active ? 'block' : 'none';
+            warningMsg.style.display = active ? 'block' : 'none';
+        };
+
         const btn = document.getElementById('btn');
         const status = document.getElementById('status');
         const progress = document.getElementById('progress');
         const outputVideo = document.getElementById('outputVideo');
 
-        function buildTimeSliceFilter(numSlices, delayStep, isHorizontal, isInverted) {
+        function buildFilter(numSlices, delayStep, feather, isHorizontal, isInverted, useFeather) {
             let filter = `split=${numSlices}`;
             let labels = "";
             for(let i=0; i<numSlices; i++) labels += `[v${i}]`;
             filter += `${labels};`;
 
-            let stackLabels = "";
-            for(let i=0; i<numSlices; i++) {
-                // Cálculo do atraso
-                let currentIdx = isInverted ? (numSlices - 1 - i) : i;
-                let startTrim = (currentIdx * delayStep).toFixed(2);
-                
-                if (isHorizontal) {
-                    // FATIA HORIZONTAL (Corta largura)
-                    filter += `[v${i}]crop=iw/${numSlices}:ih:iw/${numSlices}*${i}:0,trim=start=${startTrim},setpts=PTS-STARTPTS[s${i}];`;
-                } else {
-                    // FATIA VERTICAL (Corta altura)
-                    filter += `[v${i}]crop=iw:ih/${numSlices}:0:ih/${numSlices}*${i},trim=start=${startTrim},setpts=PTS-STARTPTS[s${i}];`;
+            // MODO RÁPIDO (Sem Feather)
+            if (!useFeather) {
+                let stackLabels = "";
+                for(let i=0; i<numSlices; i++) {
+                    let d = (isInverted ? (numSlices-1-i) : i) * delayStep;
+                    filter += `[v${i}]crop=${isHorizontal?'iw/'+numSlices+':ih:iw/'+numSlices+'*'+i+':0':'iw:ih/'+numSlices+':0:ih/'+numSlices+'*'+i'},trim=start=${d.toFixed(2)},setpts=PTS-STARTPTS[s${i}];`;
+                    stackLabels += `[s${i}]`;
                 }
-                stackLabels += `[s${i}]`;
+                filter += `${stackLabels}${isHorizontal?'hstack':'vstack'}=inputs=${numSlices}:shortest=1`;
+                return filter;
             }
-            
-            const stackMode = isHorizontal ? 'hstack' : 'vstack';
-            filter += `${stackLabels}${stackMode}=inputs=${numSlices}:shortest=1`;
-            return filter;
+
+            // MODO EXPERIMENTAL (Com Feather/Overlay)
+            let finalFilter = `split=${numSlices}`;
+            let lbls = ""; for(let i=0; i<numSlices; i++) lbls += `[raw${i}]`;
+            finalFilter += `${lbls};`;
+
+            for(let i=0; i<numSlices; i++) {
+                let d = (isInverted ? (numSlices-1-i) : i) * delayStep;
+                let cropX = isHorizontal ? `(iw/${numSlices})*${i}` : "0";
+                let cropY = isHorizontal ? "0" : `(ih/${numSlices})*${i}`;
+                let cropW = isHorizontal ? `iw/${numSlices}` : "iw";
+                let cropH = isHorizontal ? "ih" : `ih/${numSlices}`;
+
+                finalFilter += `[raw${i}]crop=${cropW}:${cropH}:${cropX}:${cropY},trim=start=${d.toFixed(2)},setpts=PTS-STARTPTS[crop${i}];`;
+                
+                // Gerador de máscara Alpha com Feather
+                finalFilter += `color=white:s=${cropW}x${cropH},format=alpha,geq=lum='if(lte(${isHorizontal?'x':'y'},${feather}),(p(x,y)/${feather})*${isHorizontal?'x':'y'},if(gte(${isHorizontal?'x':'y'},${isHorizontal?cropW:cropH}-${feather}),((p(x,y)/${feather})*(${isHorizontal?cropW:cropH}-${isHorizontal?'x':'y'})),255))'[m${i}];`;
+                
+                finalFilter += `[crop${i}][m${i}]alphamerge[fatia${i}];`;
+            }
+
+            finalFilter += `[fatia0]`;
+            for(let i=1; i<numSlices; i++) {
+                let cropX = isHorizontal ? `(iw/${numSlices})*${i}` : "0";
+                let cropY = isHorizontal ? "0" : `(ih/${numSlices})*${i}`;
+                finalFilter += `[fatia${i}]overlay=x=${cropX}:y=${cropY}:shortest=1`;
+                if(i < numSlices - 1) finalFilter += `[tmp${i}];[tmp${i}]`;
+            }
+            return finalFilter;
         }
 
         btn.onclick = async () => {
             const file = document.getElementById('uploader').files[0];
-            if (!file) return alert("Por favor, selecione um vídeo!");
+            if (!file) return alert("Selecione um vídeo!");
 
             try {
                 btn.disabled = true;
                 outputVideo.style.display = "none";
-                document.getElementById('saveHint').style.display = "none";
                 
                 if (!ffmpeg.isLoaded()) {
-                    status.innerText = "Carregando motor gráfico...";
+                    status.innerText = "Carregando motor...";
                     await ffmpeg.load();
                 }
 
-                status.innerText = "Processando arquivo...";
-                ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
+                status.innerText = "Preparando...";
+                ffmpeg.FS('writeFile', 'in.mp4', await fetchFile(file));
 
                 ffmpeg.setProgress(({ ratio }) => {
                     progress.style.display = 'block';
@@ -156,38 +229,37 @@
                     status.innerText = `Renderizando: ${(ratio * 100).toFixed(0)}%`;
                 });
 
-                const numSlices = parseInt(document.getElementById('slices').value);
-                const delayStep = parseFloat(document.getElementById('delay').value);
-                const isHorizontal = document.getElementById('mode').value === 'horizontal';
-                const isInverted = document.getElementById('flow').value === 'inverted';
-
-                const filter = buildTimeSliceFilter(numSlices, delayStep, isHorizontal, isInverted);
-                
-                status.innerText = "Gerando fatias temporais...";
+                const filter = buildFilter(
+                    parseInt(inputSlices.value),
+                    parseFloat(document.getElementById('delay').value),
+                    parseInt(inputFeather.value),
+                    document.getElementById('mode').value === 'horizontal',
+                    document.getElementById('flow').value === 'inverted',
+                    featherToggle.checked
+                );
                 
                 await ffmpeg.run(
-                    '-i', 'input.mp4', 
+                    '-i', 'in.mp4', 
                     '-vf', filter, 
                     '-c:v', 'libx264', 
                     '-preset', 'ultrafast', 
                     '-pix_fmt', 'yuv420p',
                     '-threads', '1',
-                    'output.mp4'
+                    'out.mp4'
                 );
 
-                const data = ffmpeg.FS('readFile', 'output.mp4');
+                const data = ffmpeg.FS('readFile', 'out.mp4');
                 const url = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
                 
                 status.innerText = "Concluído!";
                 outputVideo.src = url;
                 outputVideo.style.display = "block";
-                document.getElementById('saveHint').style.display = "block";
 
-                ffmpeg.FS('unlink', 'input.mp4');
-                ffmpeg.FS('unlink', 'output.mp4');
+                ffmpeg.FS('unlink', 'in.mp4');
+                ffmpeg.FS('unlink', 'out.mp4');
 
             } catch (e) {
-                status.innerText = "Ocorreu um erro no processamento.";
+                status.innerText = "Erro. Reduza as fatias ou o tempo do vídeo.";
                 console.error(e);
             } finally {
                 btn.disabled = false;
