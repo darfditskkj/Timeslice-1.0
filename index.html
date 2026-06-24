@@ -142,4 +142,89 @@
     
     <script>
         const { createFFmpeg, fetchFile } = FFmpeg;
-        const ffmpeg = createFFmpeg(
+        const ffmpeg = createFFmpeg({ 
+            log: true,
+            corePath: 'https://unpkg.com/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js'
+        });
+
+        const inputSlices = document.getElementById('slices');
+        const valSlices = document.getElementById('val-slices');
+        inputSlices.oninput = () => valSlices.innerText = inputSlices.value;
+
+        const btn = document.getElementById('btn');
+        const status = document.getElementById('status');
+        const progress = document.getElementById('progress');
+        const outputVideo = document.getElementById('outputVideo');
+
+        function buildFilter(numSlices, delayStep, isHorizontal, isInverted) {
+            let filter = `split=${numSlices}`;
+            let labels = "";
+            for(let i=0; i<numSlices; i++) labels += `[v${i}]`;
+            filter += `${labels};`;
+
+            let stackLabels = "";
+            for(let i=0; i<numSlices; i++) {
+                let currentIdx = isInverted ? (numSlices - 1 - i) : i;
+                let d = (currentIdx * delayStep).toFixed(2);
+                let cropX = isHorizontal ? `(iw/${numSlices})*${i}` : "0";
+                let cropY = isHorizontal ? "0" : `(ih/${numSlices})*${i}`;
+                let cropW = isHorizontal ? `iw/${numSlices}` : "iw";
+                let cropH = isHorizontal ? "ih" : `ih/${numSlices}`;
+                filter += `[v${i}]crop=${cropW}:${cropH}:${cropX}:${cropY},trim=start=${d},setpts=PTS-STARTPTS[s${i}];`;
+                stackLabels += `[s${i}]`;
+            }
+            const stackMode = isHorizontal ? 'hstack' : 'vstack';
+            filter += `${stackLabels}${stackMode}=inputs=${numSlices}:shortest=1`;
+            return filter;
+        }
+
+        btn.onclick = async () => {
+            const file = document.getElementById('uploader').files[0];
+            if (!file) return alert("Selecione um vídeo!");
+
+            try {
+                btn.disabled = true;
+                outputVideo.style.display = "none";
+                status.innerText = "Iniciando motor...";
+                if (!ffmpeg.isLoaded()) await ffmpeg.load();
+
+                status.innerText = "Carregando vídeo...";
+                ffmpeg.FS('writeFile', 'in.mp4', await fetchFile(file));
+
+                ffmpeg.setProgress(({ ratio }) => {
+                    progress.style.display = 'block';
+                    progress.value = ratio * 100;
+                    status.innerText = `Processando: ${(ratio * 100).toFixed(0)}%`;
+                });
+
+                const numSlices = parseInt(inputSlices.value);
+                const delayStep = parseFloat(document.getElementById('delay').value);
+                const isHorizontal = document.getElementById('mode').value === 'horizontal';
+                const isInverted = document.getElementById('flow').value === 'inverted';
+
+                const filter = buildFilter(numSlices, delayStep, isHorizontal, isInverted);
+                
+                await ffmpeg.run(
+                    '-i', 'in.mp4', '-vf', filter, 
+                    '-c:v', 'libx264', '-preset', 'ultrafast', 
+                    '-pix_fmt', 'yuv420p', '-threads', '1', 'out.mp4'
+                );
+
+                const data = ffmpeg.FS('readFile', 'out.mp4');
+                const url = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+                status.innerText = "Sucesso!";
+                outputVideo.src = url;
+                outputVideo.style.display = "block";
+
+                ffmpeg.FS('unlink', 'in.mp4');
+                ffmpeg.FS('unlink', 'out.mp4');
+            } catch (e) {
+                status.innerText = "Erro. Use um vídeo menor.";
+                console.error(e);
+            } finally {
+                btn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>
