@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TimeSlice by @Darfdits (RAW POWER)</title>
     
-    <!-- Script para ativar Multi-thread no GitHub Pages -->
+    <!-- Script required for Multi-thread on GitHub Pages -->
     <script src="coi-serviceworker.js"></script>
     
     <style>
@@ -36,6 +36,8 @@
         }
         input[type="range"] { width: 100%; accent-color: var(--primary); margin: 10px 0; }
 
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+
         button {
             width: 100%; padding: 18px; background: var(--primary); border: none; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; font-size: 1.1rem;
         }
@@ -57,20 +59,20 @@
     <div class="card">
         <center>
             <h1>TimeSlice Pro</h1>
-            <div class="badge">UNSTABLE FULL-RESOLUTION MODE</div>
+            <div class="badge">UNSTABLE MULTI-CORE MODE</div>
         </center>
         
         <div class="control-group">
-            <label>1. Source Video (Original Quality)</label>
+            <label>1. Source Video</label>
             <input type="file" id="uploader" accept="video/*" />
         </div>
 
         <div class="control-group">
-            <label>Slices (Up to 150): <span id="val-slices">30</span></label>
+            <label>Slices: <span id="val-slices">30</span></label>
             <input type="range" id="slices" min="2" max="150" value="30">
         </div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:20px;">
+        <div class="grid">
             <div class="control-group">
                 <label>Delay (s)</label>
                 <input type="number" id="delay" value="0.05" step="0.01">
@@ -84,6 +86,14 @@
             </div>
         </div>
 
+        <div class="control-group">
+            <label>Time Flow</label>
+            <select id="flow">
+                <option value="normal">Normal</option>
+                <option value="inverted">Inverted</option>
+            </select>
+        </div>
+
         <button id="btn">FORCE FULL RENDER</button>
         
         <div id="status">Ready</div>
@@ -93,11 +103,9 @@
     </div>
 
     <div class="info-box">
-        <b>Warning:</b> This mode processes video at its <b>original resolution</b>. 
-        High-resolution videos with many slices may crash the mobile browser due to extreme RAM usage.
+        <b>System Warning:</b> Processing at <b>original resolution</b> with multiple threads. Large files + many slices will likely crash mobile browsers.
     </div>
 
-    <!-- Usando FFmpeg 0.11.6 para Multi-thread -->
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
     
     <script>
@@ -139,20 +147,25 @@
                 const n = parseInt(document.getElementById('slices').value);
                 const d = parseFloat(document.getElementById('delay').value);
                 const isHoriz = document.getElementById('mode').value === 'horizontal';
+                const isInv = document.getElementById('flow').value === 'inverted';
 
-                // FILTRO RAW: Apenas split e vstack. Sem escala, sem limites.
+                // RAW FILTER LOGIC
                 let filter = `split=${n}`;
                 let labels = ""; for(let i=0; i<n; i++) labels += `[v${i}]`;
                 filter += `${labels};`;
                 
                 let stack = "";
                 for(let i=0; i<n; i++) {
-                    let time = (i * d).toFixed(2);
+                    // Correct Flow Logic:
+                    let currentIdx = isInv ? (n - 1 - i) : i;
+                    let time = (currentIdx * d).toFixed(2);
+                    
                     let crop = isHoriz ? `iw/${n}:ih:iw/${n}*${i}:0` : `iw:ih/${n}:0:ih/${n}*${i}`;
                     filter += `[v${i}]crop=${crop},trim=start=${time},setpts=PTS-STARTPTS[s${i}];`;
                     stack += `[s${i}]`;
                 }
-                filter += `${stack}${isHoriz ? 'hstack' : 'vstack'}=inputs=${n}:shortest=1`;
+                const stackMode = isHoriz ? 'hstack' : 'vstack';
+                filter += `${stack}${stackMode}=inputs=${n}:shortest=1`;
 
                 await ffmpeg.run(
                     '-i', 'input.mp4',
@@ -160,7 +173,7 @@
                     '-c:v', 'libx264',
                     '-preset', 'ultrafast',
                     '-pix_fmt', 'yuv420p',
-                    '-threads', '0', // Usa todos os núcleos
+                    '-threads', '0', // Full multi-core usage
                     'output.mp4'
                 );
 
