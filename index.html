@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TimeSlice by @Darfdits (RAW POWER)</title>
+    <title>TimeSlice by @Darfdits</title>
     
-    <!-- Script required for Multi-thread on GitHub Pages -->
     <script src="coi-serviceworker.js"></script>
     
     <style>
@@ -21,11 +20,11 @@
         }
         .card {
             background: var(--card); padding: 25px; border-radius: 20px;
-            width: 100%; max-width: 420px; border: 1px solid var(--danger);
-            box-shadow: 0 0 30px rgba(255, 59, 48, 0.15);
+            width: 100%; max-width: 420px; border: 1px solid var(--border);
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
         h1 { font-size: 1.4rem; text-align: center; color: var(--primary); margin: 0 0 5px 0; font-weight: 900; }
-        .badge { font-size: 0.6rem; background: var(--danger); color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: bold; margin-bottom: 20px; display: inline-block; }
+        .badge { font-size: 0.6rem; background: var(--primary); color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: bold; margin-bottom: 20px; display: inline-block; }
         
         .control-group { margin-bottom: 20px; }
         label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #8e8e93; margin-bottom: 8px; }
@@ -41,16 +40,16 @@
         button {
             width: 100%; padding: 18px; background: var(--primary); border: none; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; font-size: 1.1rem;
         }
-        button:active { transform: scale(0.98); }
         button:disabled { background: #3a3a3c; color: #8e8e93; }
 
-        #status { text-align: center; margin-top: 15px; font-size: 0.9rem; color: var(--danger); font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        #status { text-align: center; margin-top: 15px; font-size: 0.9rem; color: var(--danger); font-weight: bold; }
         progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--primary); display: none; }
         video { width: 100%; margin-top: 20px; border-radius: 15px; display: none; background: #000; }
         
         .info-box {
             margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.05);
-            border-radius: 15px; font-size: 0.75rem; color: #8e8e93; width: 100%; max-width: 420px; box-sizing: border-box;
+            border-radius: 15px; font-size: 0.75rem; color: #ff3b30; width: 100%; max-width: 420px; box-sizing: border-box;
+            border: 1px solid rgba(255, 59, 48, 0.3);
         }
     </style>
 </head>
@@ -59,7 +58,7 @@
     <div class="card">
         <center>
             <h1>TimeSlice Pro</h1>
-            <div class="badge">UNSTABLE MULTI-CORE MODE</div>
+            <div class="badge">STABLE MULTI-CORE</div>
         </center>
         
         <div class="control-group">
@@ -68,8 +67,9 @@
         </div>
 
         <div class="control-group">
-            <label>Slices: <span id="val-slices">30</span></label>
-            <input type="range" id="slices" min="2" max="150" value="30">
+            <label>Slices (Limit 30): <span id="val-slices">12</span></label>
+            <!-- Limite restaurado para 30 -->
+            <input type="range" id="slices" min="2" max="30" value="12">
         </div>
 
         <div class="grid">
@@ -103,7 +103,7 @@
     </div>
 
     <div class="info-box">
-        <b>System Warning:</b> Processing at <b>original resolution</b> with multiple threads. Large files + many slices will likely crash mobile browsers.
+        <b>Warning:</b> Using more than <b>15 slices</b> may cause rendering failure, "broken file" errors, or browser crashes on mobile devices due to extreme memory usage.
     </div>
 
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
@@ -131,11 +131,11 @@
                 video.style.display = "none";
                 
                 if (!ffmpeg.isLoaded()) {
-                    status.innerText = "Igniting Multi-Core Engine...";
+                    status.innerText = "Loading Engine...";
                     await ffmpeg.load();
                 }
 
-                status.innerText = "Loading Raw Bytes...";
+                status.innerText = "Processing Data...";
                 ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
 
                 ffmpeg.setProgress(({ ratio }) => {
@@ -149,36 +149,36 @@
                 const isHoriz = document.getElementById('mode').value === 'horizontal';
                 const isInv = document.getElementById('flow').value === 'inverted';
 
-                // RAW FILTER LOGIC
+                // CORREÇÃO PARA ANDROID:
+                // scale=trunc(iw/2)*2:trunc(ih/2)*2 garante que o vídeo final tenha dimensões pares.
                 let filter = `split=${n}`;
                 let labels = ""; for(let i=0; i<n; i++) labels += `[v${i}]`;
                 filter += `${labels};`;
                 
                 let stack = "";
                 for(let i=0; i<n; i++) {
-                    // Correct Flow Logic:
                     let currentIdx = isInv ? (n - 1 - i) : i;
                     let time = (currentIdx * d).toFixed(2);
-                    
                     let crop = isHoriz ? `iw/${n}:ih:iw/${n}*${i}:0` : `iw:ih/${n}:0:ih/${n}*${i}`;
                     filter += `[v${i}]crop=${crop},trim=start=${time},setpts=PTS-STARTPTS[s${i}];`;
                     stack += `[s${i}]`;
                 }
                 const stackMode = isHoriz ? 'hstack' : 'vstack';
-                filter += `${stack}${stackMode}=inputs=${n}:shortest=1`;
+                filter += `${stack}${stackMode}=inputs=${n}:shortest=1,scale=trunc(iw/2)*2:trunc(ih/2)*2`;
 
                 await ffmpeg.run(
                     '-i', 'input.mp4',
                     '-vf', filter,
                     '-c:v', 'libx264',
                     '-preset', 'ultrafast',
-                    '-pix_fmt', 'yuv420p',
-                    '-threads', '0', // Full multi-core usage
+                    '-pix_fmt', 'yuv420p', // Formato de cor padrão compatível
+                    '-threads', '0',
                     'output.mp4'
                 );
 
                 const data = ffmpeg.FS('readFile', 'output.mp4');
-                video.src = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+                const blob = new Blob([data.buffer], { type: 'video/mp4' });
+                video.src = URL.createObjectURL(blob);
                 video.style.display = "block";
                 status.innerText = "Done!";
 
@@ -187,7 +187,7 @@
 
             } catch (e) {
                 console.error(e);
-                status.innerText = "CRASH: Memory Overload";
+                status.innerText = "Error: Memory limit exceeded.";
             } finally {
                 btn.disabled = false;
             }
