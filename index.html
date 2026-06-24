@@ -14,9 +14,9 @@
         }
         .card {
             background: #1c1c1e; padding: 25px; border-radius: 20px;
-            width: 100%; max-width: 450px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            width: 100%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
-        h1 { font-size: 1.6rem; text-align: center; color: #0a84ff; margin: 0 0 25px 0; }
+        h1 { font-size: 1.5rem; text-align: center; color: #0a84ff; margin: 0 0 20px 0; }
         
         .control-group { margin-bottom: 20px; }
         label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #8e8e93; margin-bottom: 8px; }
@@ -46,12 +46,12 @@
             font-weight: bold; font-size: 1.1rem; cursor: pointer;
             margin-top: 10px; transition: 0.2s;
         }
-        button:active { transform: scale(0.98); background: #0071e3; }
+        button:active { transform: scale(0.98); }
         button:disabled { background: #3a3a3c; color: #8e8e93; }
 
         #status { text-align: center; margin-top: 15px; font-size: 0.9rem; color: #32d74b; min-height: 1.5em; }
         progress { width: 100%; height: 8px; margin-top: 10px; accent-color: #0a84ff; border-radius: 10px; }
-        video { width: 100%; margin-top: 20px; border-radius: 15px; display: none; background: #000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        video { width: 100%; margin-top: 20px; border-radius: 15px; display: none; background: #000; }
     </style>
 </head>
 <body>
@@ -60,7 +60,7 @@
         <h1>TimeSlice Engine</h1>
         
         <div class="control-group">
-            <label>1. Selecionar Vídeo</label>
+            <label>1. Vídeo de Origem</label>
             <input type="file" id="uploader" accept="video/*" />
         </div>
 
@@ -77,13 +77,13 @@
             <div class="control-group">
                 <label>Ângulo</label>
                 <select id="mode">
-                    <option value="vertical">Vertical</option>
-                    <option value="horizontal">Horizontal</option>
+                    <option value="vertical">Vertical (Cima/Baixo)</option>
+                    <option value="horizontal">Horizontal (Lados)</option>
                 </select>
             </div>
         </div>
 
-        <button id="btn">GERAR RENDER</button>
+        <button id="btn">INICIAR RENDER</button>
         
         <div id="status">Pronto</div>
         <progress id="progress" value="0" max="100" style="display:none;"></progress>
@@ -91,11 +91,13 @@
         <video id="outputVideo" controls playsinline></video>
     </div>
 
-    <!-- Script estável para evitar erro de SharedArrayBuffer -->
+    <!-- Bibliotecas estáveis para rodar no navegador sem erro -->
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js"></script>
     
     <script>
         const { createFFmpeg, fetchFile } = FFmpeg;
+        
+        // Usando a versão 0.10.0 que é a mais compatível com GitHub Pages/iOS
         const ffmpeg = createFFmpeg({ 
             log: true,
             corePath: 'https://unpkg.com/@ffmpeg/core@0.10.0/dist/ffmpeg-core.js'
@@ -110,7 +112,8 @@
         const progress = document.getElementById('progress');
         const outputVideo = document.getElementById('outputVideo');
 
-        function buildFilter(numSlices, delayStep, isHorizontal) {
+        // Função de montagem do filtro (Lógica de Fatias Puras)
+        function buildTimeSliceFilter(numSlices, delayStep, isHorizontal) {
             let filter = `split=${numSlices}`;
             let labels = "";
             for(let i=0; i<numSlices; i++) labels += `[v${i}]`;
@@ -119,14 +122,17 @@
             let stackLabels = "";
             for(let i=0; i<numSlices; i++) {
                 let d = (i * delayStep).toFixed(2);
-                let cropParam = isHorizontal ? 
-                    `iw/${numSlices}:ih:iw/${numSlices}*${i}:0` : 
-                    `iw:ih/${numSlices}:0:ih/${numSlices}*${i}`;
+                let cropX = isHorizontal ? `(iw/${numSlices})*${i}` : "0";
+                let cropY = isHorizontal ? "0" : `(ih/${numSlices})*${i}`;
+                let cropW = isHorizontal ? `iw/${numSlices}` : "iw";
+                let cropH = isHorizontal ? "ih" : `ih/${numSlices}`;
 
-                filter += `[v${i}]crop=${cropParam},trim=start=${d},setpts=PTS-STARTPTS[s${i}];`;
+                // Recorta cada parte e aplica o atraso de tempo (trim)
+                filter += `[v${i}]crop=${cropW}:${cropH}:${cropX}:${cropY},trim=start=${d},setpts=PTS-STARTPTS[s${i}];`;
                 stackLabels += `[s${i}]`;
             }
             
+            // Empilha as fatias
             const stackMode = isHorizontal ? 'hstack' : 'vstack';
             filter += `${stackLabels}${stackMode}=inputs=${numSlices}:shortest=1`;
             return filter;
@@ -134,16 +140,16 @@
 
         btn.onclick = async () => {
             const file = document.getElementById('uploader').files[0];
-            if (!file) return alert("Selecione um vídeo primeiro!");
+            if (!file) return alert("Selecione um vídeo!");
 
             try {
                 btn.disabled = true;
                 outputVideo.style.display = "none";
-                status.innerText = "Iniciando motor...";
+                status.innerText = "Carregando motor gráfico...";
                 
                 if (!ffmpeg.isLoaded()) await ffmpeg.load();
 
-                status.innerText = "Preparando arquivo...";
+                status.innerText = "Preparando vídeo...";
                 ffmpeg.FS('writeFile', 'in.mp4', await fetchFile(file));
 
                 ffmpeg.setProgress(({ ratio }) => {
@@ -156,10 +162,11 @@
                 const delayStep = parseFloat(document.getElementById('delay').value);
                 const isHorizontal = document.getElementById('mode').value === 'horizontal';
 
-                const filter = buildFilter(numSlices, delayStep, isHorizontal);
+                const filter = buildTimeSliceFilter(numSlices, delayStep, isHorizontal);
                 
                 status.innerText = "Renderizando fatias...";
                 
+                // Comando otimizado para iOS e navegadores
                 await ffmpeg.run(
                     '-i', 'in.mp4', 
                     '-vf', filter, 
@@ -173,15 +180,16 @@
                 const data = ffmpeg.FS('readFile', 'out.mp4');
                 const url = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
                 
-                status.innerText = "Finalizado com sucesso!";
+                status.innerText = "Finalizado!";
                 outputVideo.src = url;
                 outputVideo.style.display = "block";
 
+                // Limpeza de memória
                 ffmpeg.FS('unlink', 'in.mp4');
                 ffmpeg.FS('unlink', 'out.mp4');
 
             } catch (e) {
-                status.innerText = "Erro. Tente um vídeo mais curto.";
+                status.innerText = "Erro: Tente um vídeo mais curto.";
                 console.error(e);
             } finally {
                 btn.disabled = false;
