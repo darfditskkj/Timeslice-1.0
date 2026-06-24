@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TimeSlice by @Darfdits</title>
     
+    <!-- Multi-thread support for GitHub Pages -->
     <script src="coi-serviceworker.js"></script>
     
     <style>
@@ -12,6 +13,25 @@
             --bg: #000; --card: #1c1c1e; --text: #fff; --primary: #0a84ff;
             --danger: #ff3b30; --border: #3a3a3c;
         }
+
+        /* Fullscreen Popup Overlay */
+        #popup-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95); z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px; box-sizing: border-box; text-align: center;
+        }
+        .popup-content {
+            background: var(--card); padding: 30px; border-radius: 20px;
+            border: 1px solid var(--danger); max-width: 400px;
+        }
+        .popup-content p { font-size: 1.1rem; line-height: 1.5; margin-bottom: 25px; }
+        .popup-btn {
+            background: var(--danger); color: white; border: none;
+            padding: 15px 30px; border-radius: 12px; font-weight: bold;
+            font-size: 1rem; cursor: pointer; text-transform: uppercase;
+        }
+
         body { 
             font-family: -apple-system, system-ui, sans-serif;
             background: var(--bg); color: var(--text); 
@@ -28,8 +48,7 @@
         
         .control-group { margin-bottom: 20px; }
         label { display: flex; justify-content: space-between; font-size: 0.85rem; color: #8e8e93; margin-bottom: 8px; }
-        label span { color: var(--primary); }
-
+        
         input[type="file"], select, input[type="number"] {
             width: 100%; padding: 12px; background: #2c2c2e; border: 1px solid var(--border); border-radius: 12px; color: white; outline: none;
         }
@@ -37,10 +56,10 @@
 
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 
-        button {
+        button#render-btn {
             width: 100%; padding: 18px; background: var(--primary); border: none; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; font-size: 1.1rem;
         }
-        button:disabled { background: #3a3a3c; color: #8e8e93; }
+        button#render-btn:disabled { background: #3a3a3c; color: #8e8e93; }
 
         #status { text-align: center; margin-top: 15px; font-size: 0.9rem; color: var(--danger); font-weight: bold; }
         progress { width: 100%; height: 8px; margin-top: 10px; accent-color: var(--primary); display: none; }
@@ -55,10 +74,18 @@
 </head>
 <body>
 
+    <!-- Blocking Popup -->
+    <div id="popup-overlay">
+        <div class="popup-content">
+            <p>Use esse site somente em navegadores com base chromium para o render funcionar 100%</p>
+            <button class="popup-btn" onclick="closePopup()">Quero continuar</button>
+        </div>
+    </div>
+
     <div class="card">
         <center>
             <h1>TimeSlice Pro</h1>
-            <div class="badge">STABLE MULTI-CORE</div>
+            <div class="badge">CHROMIUM OPTIMIZED</div>
         </center>
         
         <div class="control-group">
@@ -68,7 +95,6 @@
 
         <div class="control-group">
             <label>Slices (Limit 30): <span id="val-slices">12</span></label>
-            <!-- Limite restaurado para 30 -->
             <input type="range" id="slices" min="2" max="30" value="12">
         </div>
 
@@ -94,7 +120,7 @@
             </select>
         </div>
 
-        <button id="btn">FORCE FULL RENDER</button>
+        <button id="render-btn">FORCE FULL RENDER</button>
         
         <div id="status">Ready</div>
         <progress id="progress" value="0" max="100"></progress>
@@ -103,12 +129,17 @@
     </div>
 
     <div class="info-box">
-        <b>Warning:</b> Using more than <b>15 slices</b> may cause rendering failure, "broken file" errors, or browser crashes on mobile devices due to extreme memory usage.
+        <b>Warning:</b> Using more than <b>15 slices</b> may cause rendering failure or broken files on mobile browsers.
     </div>
 
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
     
     <script>
+        // Popup closer
+        function closePopup() {
+            document.getElementById('popup-overlay').style.display = 'none';
+        }
+
         const { createFFmpeg, fetchFile } = FFmpeg;
         const ffmpeg = createFFmpeg({ 
             log: true,
@@ -117,11 +148,11 @@
 
         document.getElementById('slices').oninput = (e) => document.getElementById('val-slices').innerText = e.target.value;
 
-        document.getElementById('btn').onclick = async () => {
+        document.getElementById('render-btn').onclick = async () => {
             const file = document.getElementById('uploader').files[0];
             if (!file) return;
 
-            const btn = document.getElementById('btn');
+            const btn = document.getElementById('render-btn');
             const status = document.getElementById('status');
             const prog = document.getElementById('progress');
             const video = document.getElementById('outputVideo');
@@ -135,7 +166,7 @@
                     await ffmpeg.load();
                 }
 
-                status.innerText = "Processing Data...";
+                status.innerText = "Reading File...";
                 ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
 
                 ffmpeg.setProgress(({ ratio }) => {
@@ -149,8 +180,9 @@
                 const isHoriz = document.getElementById('mode').value === 'horizontal';
                 const isInv = document.getElementById('flow').value === 'inverted';
 
-                // CORREÇÃO PARA ANDROID:
-                // scale=trunc(iw/2)*2:trunc(ih/2)*2 garante que o vídeo final tenha dimensões pares.
+                // FILTER IMPROVEMENTS FOR EDGE/MOBILE:
+                // 1. floor() helps avoiding sub-pixel dimension issues.
+                // 2. scale=trunc(iw/2)*2:trunc(ih/2)*2 ensures even dimensions for H.264.
                 let filter = `split=${n}`;
                 let labels = ""; for(let i=0; i<n; i++) labels += `[v${i}]`;
                 filter += `${labels};`;
@@ -159,7 +191,11 @@
                 for(let i=0; i<n; i++) {
                     let currentIdx = isInv ? (n - 1 - i) : i;
                     let time = (currentIdx * d).toFixed(2);
-                    let crop = isHoriz ? `iw/${n}:ih:iw/${n}*${i}:0` : `iw:ih/${n}:0:ih/${n}*${i}`;
+                    
+                    let crop = isHoriz ? 
+                        `floor(iw/${n}):ih:floor(iw/${n}*${i}):0` : 
+                        `iw:floor(ih/${n}):0:floor(ih/${n}*${i})`;
+                        
                     filter += `[v${i}]crop=${crop},trim=start=${time},setpts=PTS-STARTPTS[s${i}];`;
                     stack += `[s${i}]`;
                 }
@@ -171,7 +207,9 @@
                     '-vf', filter,
                     '-c:v', 'libx264',
                     '-preset', 'ultrafast',
-                    '-pix_fmt', 'yuv420p', // Formato de cor padrão compatível
+                    '-profile:v', 'baseline', // Max compatibility for mobile decoders
+                    '-level', '3.0',           // Standard level for web
+                    '-pix_fmt', 'yuv420p',
                     '-threads', '0',
                     'output.mp4'
                 );
@@ -187,7 +225,7 @@
 
             } catch (e) {
                 console.error(e);
-                status.innerText = "Error: Memory limit exceeded.";
+                status.innerText = "Rendering Error.";
             } finally {
                 btn.disabled = false;
             }
