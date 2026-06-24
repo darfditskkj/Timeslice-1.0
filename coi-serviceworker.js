@@ -2,23 +2,16 @@
 if (typeof window === "undefined") {
     self.addEventListener("install", () => self.skipWaiting());
     self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
-
     self.onfetch = (event) => {
         if (event.request.method === "GET" && event.request.url.startsWith(self.location.origin)) {
             event.respondWith(
                 fetch(event.request).then((response) => {
                     if (response.status === 0) return response;
-
                     const newHeaders = new Headers(response.headers);
                     newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
                     newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
-
-                    return new Response(response.body, {
-                        status: response.status,
-                        statusText: response.statusText,
-                        headers: newHeaders,
-                    });
-                }).catch(e => console.error(e))
+                    return new Response(response.body, { status: response.status, statusText: response.statusText, headers: newHeaders });
+                })
             );
         }
     };
@@ -26,9 +19,8 @@ if (typeof window === "undefined") {
     const n = navigator.serviceWorker;
     if (n) {
         n.register(window.document.currentScript.src).then((registration) => {
-            if (n.controller && !window.crossOriginIsolated) {
-                location.reload();
-            }
+            registration.addEventListener("updatefound", () => location.reload());
+            if (n.controller && !window.crossOriginIsolated) location.reload();
         });
     }
 }
