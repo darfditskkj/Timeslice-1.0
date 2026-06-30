@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AST Engine Pro - Fixed</title>
+    <title>AST Engine Pro - Fixed Render</title>
     <script src="coi-serviceworker.js"></script>
     <style>
         :root {
@@ -36,6 +36,7 @@
         }
         button#process-btn:disabled { background: #3a3a3c; color: #8e8e93; }
         progress { width: 100%; height: 6px; margin-top: 15px; accent-color: var(--primary); display: none; }
+        .back-btn { margin-top: 20px; color: #8e8e93; text-decoration: none; font-size: 0.8rem; }
     </style>
 </head>
 <body>
@@ -43,41 +44,45 @@
     <div class="card">
         <center>
             <h1>AST Engine Pro</h1>
-            <div class="badge">STABLE BYPASS V2</div>
+            <div class="badge">STABLE BYPASS V3</div>
         </center>
 
-        <input type="file" id="uploader" accept="video/*" />
+        <input type="file" id="uploader" accept="video/mp4" />
 
-        <div class="pipeline-status" id="pipeline">
-            <div id="step1" class="step">• Stage 1: Standardizing Stream (yuv420p)</div>
+        <div class="pipeline-status">
+            <div id="step1" class="step">• Stage 1: Faststart Remux (No Loss)</div>
             <div id="step2" class="step">• Stage 2: Binary AST Patching</div>
-            <div id="step3" class="step">• Stage 3: Offset Validation</div>
+            <div id="step3" class="step">• Stage 3: Metadata Optimization</div>
         </div>
 
-        <button id="process-btn">START AST OPTIMIZATION</button>
+        <button id="process-btn">START AST PROCESS</button>
         <progress id="progress" value="0" max="100"></progress>
         <div id="status" style="text-align:center; font-size:0.8rem; margin-top:10px; color:var(--primary);">System Ready</div>
     </div>
+
+    <a href="index.html" class="back-btn">← Back to TimeSlice</a>
 
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 
     <script>
         const { createFFmpeg, fetchFile } = FFmpeg;
-        const ffmpeg = createFFmpeg({ 
-            log: true,
-            corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js'
-        });
+        const ffmpeg = createFFmpeg({ log: true });
 
+        // Função de Patch Binário mais leve (Surgical Patch)
         async function applyBypass(buffer) {
             const bytes = new Uint8Array(buffer);
-            // Patch Handler: Muda 'hdlr' para nomes padrão de câmeras profissionais
             const search = [104, 100, 108, 114]; // 'hdlr'
-            for (let i = 0; i < bytes.length - 40; i++) {
+            
+            // Patch apenas os primeiros Handlers para não corromper o arquivo
+            let patchesDone = 0;
+            for (let i = 0; i < bytes.length - 50 && patchesDone < 2; i++) {
                 if (bytes[i] === search[0] && bytes[i+1] === search[1] && bytes[i+2] === search[2] && bytes[i+3] === search[3]) {
-                    // Achou hdlr, vamos injetar "VideoHandler" sem mudar o tamanho do arquivo
                     const pos = i + 24; 
                     const patch = "VideoHandler";
-                    for(let j=0; j<patch.length; j++) bytes[pos+j] = patch.charCodeAt(j);
+                    for(let j=0; j<patch.length; j++) {
+                        bytes[pos+j] = patch.charCodeAt(j);
+                    }
+                    patchesDone++;
                 }
             }
             return bytes;
@@ -96,21 +101,21 @@
                 prog.style.display = 'block';
                 
                 if (!ffmpeg.isLoaded()) {
-                    status.innerText = "Initializing Engine...";
+                    status.innerText = "Connecting to Engine...";
                     await ffmpeg.load();
                 }
 
-                // STAGE 1: Re-encode leve para garantir compatibilidade de miniatura
+                // STAGE 1: Remux Ultra-Rápido (Mantém qualidade 1:1)
                 document.getElementById('step1').className = 'step active';
+                status.innerText = "Remuxing Container...";
+                
                 ffmpeg.FS('writeFile', 'in.mp4', await fetchFile(file));
                 
+                // Comando otimizado para não dar erro de memória e manter thumbnail
                 await ffmpeg.run(
                     '-i', 'in.mp4',
-                    '-c:v', 'libx264',
-                    '-crf', '17', // Alta qualidade
-                    '-pix_fmt', 'yuv420p', // Essencial para aparecer a imagem
-                    '-preset', 'ultrafast',
-                    '-c:a', 'copy',
+                    '-c', 'copy',
+                    '-map_metadata', '0', // Mantém metadados básicos para o Windows ver o vídeo
                     '-movflags', '+faststart',
                     'stage1.mp4'
                 );
@@ -118,10 +123,36 @@
 
                 // STAGE 2: Patch Binário
                 document.getElementById('step2').className = 'step active';
-                status.innerText = "Applying AST Bypass...";
+                status.innerText = "Injecting AST...";
                 const data = ffmpeg.FS('readFile', 'stage1.mp4');
                 const patchedData = await applyBypass(data.buffer);
                 document.getElementById('step2').className = 'step done';
 
-                // DOWNLOAD
-                stat
+                // STAGE 3: Finalização
+                document.getElementById('step3').className = 'step active';
+                const blob = new Blob([patchedData], { type: 'video/mp4' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "ast_v3_" + file.name;
+                a.click();
+                document.getElementById('step3').className = 'step done';
+
+                status.innerText = "SUCCESSFUL BYPASS";
+                status.style.color = "#32d74b";
+
+            } catch (e) {
+                console.error(e);
+                status.innerText = "Render Error: Use Chrome/Edge";
+                status.style.color = "var(--danger)";
+            } finally {
+                btn.disabled = false;
+            }
+        };
+
+        ffmpeg.setProgress(({ ratio }) => {
+            prog.value = ratio * 100;
+        });
+    </script>
+</body>
+</html>
